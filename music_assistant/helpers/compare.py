@@ -403,6 +403,18 @@ def compare_track(
         and compare_album(base_item.album, compare_item.album, False)
     ):
         return False
+    # likewise for different track numbers on the same disc: an external id shared
+    # by two positions of one release is an upstream data error, not identity
+    if (
+        base_item.album
+        and compare_item.album
+        and base_item.track_number
+        and compare_item.track_number
+        and base_item.track_number != compare_item.track_number
+        and (base_item.disc_number or 1) == (compare_item.disc_number or 1)
+        and compare_album(base_item.album, compare_item.album, False)
+    ):
+        return False
     # return early on (un)matched primary/unique external id
     for ext_id in (
         ExternalID.MB_RECORDING,
