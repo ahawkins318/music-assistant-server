@@ -204,6 +204,7 @@ def _harness(
     )
     ctrl.mass.music.match_provider_instances = Mock(return_value=False)
     ctrl.mass.signal_event = Mock()
+    ctrl.mass.get_provider.return_value.library_sync_unique_only.return_value = False
 
     async def _owner(item_id: str, instance: str) -> Album | None:
         if owner_id := (owners or {}).get((instance, item_id)):
@@ -292,6 +293,18 @@ async def test_linker_checks_apple_music_albums_and_trusts_the_other_providers()
         )
 
     assert [m.provider_domain for m in added] == ["apple_music", "spotify"]
+
+
+async def test_linker_skips_albums_of_a_unique_only_provider() -> None:
+    """An album link to a provider set to sync only unique items is never added."""
+    album = _library_album("1")
+    loaded = {"spotify": ["spotify_1"], "apple_music": ["apple_music_1"]}
+    with _harness(album, loaded=loaded) as harness:
+        harness.ctrl.mass.get_provider.return_value.library_sync_unique_only.return_value = True
+        added = await harness.ctrl.link_musicbrainz_mappings(album, [APPLE_ALBUM_URL])
+
+    assert added == []
+    harness.get_provider_item.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

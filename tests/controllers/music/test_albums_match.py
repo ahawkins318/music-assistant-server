@@ -178,6 +178,7 @@ def _streaming_provider(instance_id: str) -> Mock:
     provider.supported_features = {ProviderFeature.SEARCH}
     provider.supported_media_types = {MediaType.ALBUM}
     provider.is_streaming_provider = True
+    provider.library_sync_unique_only = Mock(return_value=False)
     return provider
 
 
@@ -589,6 +590,22 @@ async def test_match_providers_visits_a_matched_domain_once() -> None:
 
     assert [call.args[1].instance_id for call in match_provider.await_args_list] == ["spotify_1"]
     add_provider_mappings.assert_awaited_once_with("lib1", match)
+
+
+async def test_match_providers_skips_a_unique_only_provider() -> None:
+    """A provider set to sync only unique items is never matched to a library album."""
+    base = _library_album()
+    unique_only = _streaming_provider("apple_music_1")
+    unique_only.library_sync_unique_only.return_value = True
+    providers = [unique_only, _streaming_provider("spotify_1")]
+    match_provider = AsyncMock(return_value=[])
+    with (
+        _harness(search_results=[], provider_items={}, providers=providers) as harness,
+        patch.multiple(harness.ctrl, _match_provider=match_provider),
+    ):
+        await harness.ctrl.match_providers(base)
+
+    assert [call.args[1].instance_id for call in match_provider.await_args_list] == ["spotify_1"]
 
 
 def _musicbrainz_release(*urls: str) -> Mock:

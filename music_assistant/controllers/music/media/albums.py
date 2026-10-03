@@ -749,6 +749,9 @@ class AlbumsController(MediaControllerBase[Album]):
             if not provider.is_streaming_provider:
                 # matching on unique providers is pointless as they push (all) their content to MA
                 continue
+            if provider.library_sync_unique_only():
+                # its albums stay separate library items, never merged into another source's
+                continue
             if match := await self._match_provider(db_album, provider, True, base_tracks_memo):
                 # 100% match, we update the db with the additional provider mapping(s)
                 await self.add_provider_mappings(db_album.item_id, match)
@@ -880,6 +883,9 @@ class AlbumsController(MediaControllerBase[Album]):
 
     async def _verify_musicbrainz_mapping(self, mapping: ProviderMapping) -> bool:
         """Return True if a linked album exists on the provider, checked for Apple Music only."""
+        provider = self.mass.get_provider(mapping.provider_instance, provider_type=MusicProvider)
+        if provider is not None and provider.library_sync_unique_only():
+            return False
         # MusicBrainz links Apple Music albums per storefront, so a linked album may not
         # exist in the user's storefront; the other providers' catalogs are worldwide
         if mapping.provider_domain != "apple_music":
