@@ -340,14 +340,15 @@ def compare_track(
     # return early on exact item_id match
     if compare_item_ids(base_item, compare_item):
         return True
-    # tracks on the same album but different discs are always distinct,
-    # even if they share external IDs (e.g. same recording on multiple discs)
+    # tracks at different positions on the same album are always distinct, even if they
+    # share external IDs (the same recording on two discs, or an upstream data error)
     if (
         base_item.album
         and compare_item.album
-        and base_item.disc_number
-        and compare_item.disc_number
-        and base_item.disc_number != compare_item.disc_number
+        and base_item.track_number
+        and compare_item.track_number
+        and (base_item.disc_number or 1, base_item.track_number)
+        != (compare_item.disc_number or 1, compare_item.track_number)
         and compare_album(base_item.album, compare_item.album, False)
     ):
         return False

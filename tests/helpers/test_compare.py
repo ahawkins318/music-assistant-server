@@ -1174,6 +1174,23 @@ def test_compare_track() -> None:  # noqa: PLR0915
     # same disc number should still match via external ID
     track_b.disc_number = 1
     assert compare.compare_track(track_a, track_b) is True
+    # same album and disc, same external IDs, different track numbers should NOT match
+    track_b.track_number = 4
+    assert compare.compare_track(track_a, track_b) is False
+    # a missing disc number is disc 1, so it is a different position than disc 2
+    track_a.disc_number = 0
+    track_b.disc_number = 2
+    track_b.track_number = 3
+    assert compare.compare_track(track_a, track_b) is False
+    # and the same position as disc 1
+    track_b.disc_number = 1
+    assert compare.compare_track(track_a, track_b) is True
+    # a missing track number is an unknown position, so the external ID decides
+    track_a.disc_number = 1
+    track_b.disc_number = 2
+    track_b.track_number = 0
+    assert compare.compare_track(track_a, track_b) is True
+    track_b.track_number = 3
     # different disc but different albums should still match via external ID
     track_b.disc_number = 2
     track_b.album = media_items.ItemMapping(item_id="2", provider="test1", name="Album B")
