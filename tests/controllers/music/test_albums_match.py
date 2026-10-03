@@ -344,8 +344,8 @@ async def test_insufficient_search_result_proceeds_to_one_full_fetch() -> None:
     harness.get_provider_item.assert_awaited_once()
 
 
-async def test_full_item_match_uses_no_track_or_musicbrainz_calls() -> None:
-    """A full album that matches on metadata never fetches tracks or hits MusicBrainz."""
+async def test_full_item_match_checks_tracks_but_not_musicbrainz() -> None:
+    """A full album that matches on metadata is checked against tracks, not MusicBrainz."""
     musicbrainz = _mb()
     base = _library_album(external_ids={(ExternalID.MB_ALBUM, MB_ALBUM_ID)})
     sparse = _album("s1", "spotify_1", version="Remaster")
@@ -356,8 +356,20 @@ async def test_full_item_match_uses_no_track_or_musicbrainz_calls() -> None:
         matches = await harness.match(base)
 
     assert [mapping.item_id for mapping in matches] == ["s1"]
-    harness.get_provider_album_tracks.assert_not_awaited()
+    assert harness.album_track_calls() == ["base-prov", "s1"]
     musicbrainz.get_releases_by_barcode.assert_not_awaited()
+
+
+async def test_metadata_match_with_conflicting_tracklist_does_not_map() -> None:
+    """A different edition sharing title, artist, year and release id is not merged."""
+    base = _library_album(external_ids={(ExternalID.MB_ALBUM, MB_ALBUM_ID)})
+    full = _album("s1", "spotify_1", external_ids={(ExternalID.MB_ALBUM, MB_ALBUM_ID)})
+    with _harness(
+        search_results=[full],
+        provider_items={"s1": full},
+        provider_album_tracks={"base-prov": _tracklist(24), "s1": _tracklist(31)},
+    ) as harness:
+        assert await harness.match(base) == []
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +390,6 @@ async def test_barcode_hit_skips_the_search() -> None:
     harness.provider.get_album_by_external_id.assert_awaited_once_with(
         BASE_BARCODE, ExternalID.BARCODE
     )
-    harness.get_provider_album_tracks.assert_not_awaited()
     harness.search.assert_not_awaited()
 
 
@@ -395,7 +406,6 @@ async def test_barcode_hit_is_fetched_in_full_before_scoring() -> None:
 
     assert [mapping.item_id for mapping in matches] == ["s1"]
     harness.get_provider_item.assert_awaited_once_with("s1", "spotify_1", fallback=sparse)
-    harness.get_provider_album_tracks.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

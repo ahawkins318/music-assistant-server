@@ -45,6 +45,7 @@ from music_assistant.helpers.compare import (
     AlbumMatchEvidence,
     album_tracks_have_positions,
     compare_album_evidence,
+    compare_album_track_fingerprint,
     compare_artists,
     compare_strings,
     loose_compare_strings,
@@ -710,9 +711,9 @@ class AlbumsController(MediaControllerBase[Album]):
 
         Links albums of different providers/qualities together. A provider that supports
         barcode lookups is asked for the album by barcode before it is searched. Sparse
-        provider search results only rule out a confident non-match; a candidate that
-        still looks ambiguous is confirmed against the full provider album, its tracklist
-        and, as a last resort, MusicBrainz before its provider mapping is accepted.
+        provider search results only rule out a confident non-match; every other
+        candidate is confirmed against the full provider album and its tracklist and, if
+        still ambiguous, MusicBrainz before its provider mapping is accepted.
         """
         return await self._match_provider(db_album, provider, strict, _BaseTracksMemo())
 
@@ -1165,17 +1166,18 @@ class AlbumsController(MediaControllerBase[Album]):
         """
         Return the match evidence for a fully-fetched provider album.
 
-        An ambiguous album is escalated to ordered track fingerprints and, only if those
-        stay inconclusive, to MusicBrainz; a mapping is accepted only on a MATCH.
+        Any album not ruled out by its metadata is checked against ordered track
+        fingerprints, and a conflicting tracklist rejects it; an ambiguous album that
+        stays inconclusive goes to MusicBrainz. A mapping is accepted only on a MATCH.
 
         :param provider: The exact provider instance the candidate album was matched on;
             its tracklist is fetched directly so a same-domain fallback can never
             fingerprint the candidate against a different account/server.
         """
         evidence = compare_album_evidence(db_album, prov_album, strict=strict)
-        if evidence != AlbumMatchEvidence.INSUFFICIENT:
+        if evidence == AlbumMatchEvidence.NO_MATCH:
             return evidence
-        # ambiguous metadata: resolve conservatively with ordered track fingerprints
+        # resolve conservatively with ordered track fingerprints
         base_tracks = await self._resolve_base_album_tracks(db_album, base_tracks_memo)
         try:
             compare_tracks = await provider.get_album_tracks(prov_album.item_id)
@@ -1188,6 +1190,11 @@ class AlbumsController(MediaControllerBase[Album]):
                 err,
             )
             compare_tracks = []
+        if compare_album_track_fingerprint(base_tracks, compare_tracks) == (
+            AlbumMatchEvidence.NO_MATCH
+        ):
+            # a different edition can share title, artist, year and even a release id
+            return AlbumMatchEvidence.NO_MATCH
         evidence = compare_album_evidence(
             db_album,
             prov_album,

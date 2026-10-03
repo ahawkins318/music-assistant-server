@@ -734,6 +734,7 @@ async def test_reconcile_duplicate_albums_merges_conflicting_mapping_via_safe_pa
     provider.supported_features = {ProviderFeature.SEARCH}
     provider.supported_media_types = {MediaType.ALBUM}
     provider.is_streaming_provider = True
+    provider.get_album_tracks = AsyncMock(return_value=[])
 
     search_result = Album(
         item_id="spotify-item",
