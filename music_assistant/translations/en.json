@@ -147,7 +147,7 @@
   "common.config_entries.library_sync_radios.label": "Sync Library Radios from this source to Music Assistant",
   "common.config_entries.library_sync_tracks.description": "Whether to import (favourited/in-library) Tracks from this source to the Music Assistant Library. \n\nPlease note that by adding a Track into the Music Assistant library, the Track's Artists and Album will always be imported as well.",
   "common.config_entries.library_sync_tracks.label": "Sync Library Tracks from this source to Music Assistant",
-  "common.config_entries.library_sync_unique_only.description": "Skip an artist, album or track from this source's library when the Music Assistant library already holds it from another source, and never link this source's albums to existing library albums. Items only this source has are still imported. A skipped item stays reachable through search and 'Other versions'.",
+  "common.config_entries.library_sync_unique_only.description": "Skip an artist, album or track from this source's library when the Music Assistant library already holds it from another source, and never link this source's albums to existing library albums. Albums and tracks merged with another source earlier are split off again on the next sync. Items only this source has are still imported. A skipped item stays reachable through search and 'Other versions'.",
   "common.config_entries.library_sync_unique_only.label": "Only sync library items unique to this source",
   "common.config_entries.log_level.description": "Set the log verbosity for this provider.",
   "common.config_entries.log_level.label": "Log level",

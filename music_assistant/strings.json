@@ -146,7 +146,7 @@
     },
     "library_sync_unique_only": {
       "label": "Only sync library items unique to this source",
-      "description": "Skip an artist, album or track from this source's library when the Music Assistant library already holds it from another source, and never link this source's albums to existing library albums. Items only this source has are still imported. A skipped item stays reachable through search and 'Other versions'."
+      "description": "Skip an artist, album or track from this source's library when the Music Assistant library already holds it from another source, and never link this source's albums to existing library albums. Albums and tracks merged with another source earlier are split off again on the next sync. Items only this source has are still imported. A skipped item stays reachable through search and 'Other versions'."
     },
     "library_sync_albums": {
       "label": "Sync Library Albums from this source to Music Assistant",
