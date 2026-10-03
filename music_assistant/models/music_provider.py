@@ -1313,8 +1313,8 @@ class MusicProvider(Provider):
                     prov_item.provider_mappings,
                 )
                 db_id = sync_details.item_id if sync_details else None
-                if not sync_details and await self._library_holds_item(
-                    self.mass.music.artists, prov_item
+                if not sync_details and await self._skip_for_unique_only(
+                    self.mass.music.artists, prov_item, None
                 ):
                     continue
                 # batch all writes for this item into a single commit
@@ -1367,16 +1367,70 @@ class MusicProvider(Provider):
             )
         )
 
-    async def _library_holds_item(
-        self, controller: MediaControllerBase[Any], prov_item: MediaItemType
+    async def _skip_for_unique_only(
+        self,
+        controller: MediaControllerBase[Any],
+        prov_item: MediaItemType,
+        db_id: int | None,
     ) -> bool:
-        """Return True if a unique-only sync should skip an item the library already holds."""
+        """
+        Return True if a unique-only sync should leave this item out of the library.
+
+        A new item is skipped when the library already holds it, or (for a track) its
+        album, from another source. An album or track merged with another source's copy
+        earlier has this provider's mappings taken off again, undoing the merge.
+        """
         if not self.library_sync_unique_only():
             return False
-        if await controller._get_library_item_by_match(prov_item) is None:
+        if db_id is None:
+            held = await controller._get_library_item_by_match(prov_item) is not None
+            if not held and isinstance(prov_item, Track):
+                held = await self._album_held_elsewhere(prov_item.album)
+            if held:
+                self.logger.debug("Skipping sync of %s: already in the library", prov_item.uri)
+            return held
+        library_item = await controller.get_library_item(db_id)
+        if isinstance(prov_item, Album):
+            merged = self._has_other_mappings(library_item)
+        elif isinstance(prov_item, Track):
+            # only a track no other source maps is padding; a shared track is just a
+            # second way to play the same file
+            merged = not self._has_other_mappings(
+                library_item
+            ) and await self._album_held_elsewhere(library_item.album)
+        else:
             return False
-        self.logger.debug("Skipping sync of %s: already in the library", prov_item.uri)
+        if merged:
+            self.logger.debug("Unmerging %s from library item %s", prov_item.uri, db_id)
+            await controller.remove_provider_mappings(db_id, self.instance_id)
+        return merged
+
+    async def _album_held_elsewhere(self, album: Album | ItemMapping | None) -> bool:
+        """Return True if a track's album is a library album another source holds."""
+        if album is None:
+            return False
+        albums = self.mass.music.albums
+        album_id: str | int | None
+        if album.provider == "library":
+            album_id = album.item_id
+        elif existing := await albums.get_library_item_by_prov_id(album.item_id, album.provider):
+            album_id = existing.item_id
+        else:
+            candidate = album if isinstance(album, Album) else albums.album_from_item_mapping(album)
+            if (album_id := await albums._get_library_item_by_match(candidate)) is None:
+                return False
+        db_album = await albums.get_library_item(album_id)
+        if not self._has_other_mappings(db_album):
+            return False
+        # an album this provider was merged into stays merged until its own album sync
+        # runs, so take it off here too in case album sync is turned off
+        if any(m.provider_instance == self.instance_id for m in db_album.provider_mappings):
+            await albums.remove_provider_mappings(db_album.item_id, self.instance_id)
         return True
+
+    def _has_other_mappings(self, library_item: MediaItemType) -> bool:
+        """Return True if another provider instance also maps this library item."""
+        return any(m.provider_instance != self.instance_id for m in library_item.provider_mappings)
 
     async def _sync_library_albums(self) -> set[int]:
         """Sync Library Albums to Music Assistant library."""
@@ -1394,9 +1448,7 @@ class MusicProvider(Provider):
                     prov_item.provider_mappings,
                 )
                 db_id = sync_details.item_id if sync_details else None
-                if not sync_details and await self._library_holds_item(
-                    self.mass.music.albums, prov_item
-                ):
+                if await self._skip_for_unique_only(self.mass.music.albums, prov_item, db_id):
                     continue
                 # batch all writes for this item into a single commit
                 async with self.mass.music.database.deferred_commit():
@@ -1795,9 +1847,7 @@ class MusicProvider(Provider):
                     ),
                 )
                 db_id = sync_details.item_id if sync_details else None
-                if not sync_details and await self._library_holds_item(
-                    self.mass.music.tracks, prov_item
-                ):
+                if await self._skip_for_unique_only(self.mass.music.tracks, prov_item, db_id):
                     continue
                 if not sync_details and not prov_item.available:
                     # skip unavailable tracks
