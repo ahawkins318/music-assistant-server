@@ -586,6 +586,9 @@ class AlbumsController(MediaControllerBase[Album]):
             if not provider.is_streaming_provider:
                 # matching on unique providers is pointless as they push (all) their content to MA
                 continue
+            if provider.library_sync_unique_only():
+                # its albums stay separate library items, never merged into another source's
+                continue
             if match := await self._match_provider(db_album, provider, True, base_tracks_memo):
                 # 100% match, we update the db with the additional provider mapping(s)
                 await self.add_provider_mappings(db_album.item_id, match)

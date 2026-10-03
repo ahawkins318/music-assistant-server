@@ -817,6 +817,12 @@ CONF_ENTRY_LIBRARY_SYNC_ALBUM_TRACKS = ConfigEntry(
     default_value=False,
     category="sync_options",
 )
+CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY = ConfigEntry(
+    key="library_sync_unique_only",
+    type=ConfigEntryType.BOOLEAN,
+    default_value=False,
+    category="sync_options",
+)
 CONF_ENTRY_LIBRARY_SYNC_PLAYLIST_TRACKS = ConfigEntry(
     key="library_sync_playlist_tracks",
     type=ConfigEntryType.STRING,

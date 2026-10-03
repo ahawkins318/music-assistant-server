@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import aiohttp
 from music_assistant_models.background_task import TaskSchedule
@@ -47,6 +47,7 @@ from music_assistant.constants import (
     CONF_ENTRY_LIBRARY_SYNC_ALBUM_TRACKS,
     CONF_ENTRY_LIBRARY_SYNC_DELETIONS,
     CONF_ENTRY_LIBRARY_SYNC_PLAYLIST_TRACKS,
+    CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY,
     DB_TABLE_PROVIDER_MAPPINGS,
     PlaylistPlayableItem,
 )
@@ -67,6 +68,7 @@ if TYPE_CHECKING:
     from music_assistant.controllers.music.media.base import (
         AudiobookSyncDetails,
         LibraryItemSyncDetails,
+        MediaControllerBase,
         TrackSyncDetails,
     )
     from music_assistant.mass import MusicAssistant
@@ -1036,6 +1038,15 @@ class MusicProvider(Provider):
         else:
             state.incomplete_media_types.add(media_type)
 
+    def library_sync_unique_only(self) -> bool:
+        """Return whether only items the library does not hold yet should be synced."""
+        return bool(
+            self.config.get_value(
+                CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY.key,
+                CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY.default_value,
+            )
+        )
+
     async def _run_library_sync(self, media_type: MediaType) -> None:  # noqa: PLR0915
         """Sync the given media type into the library and process its deletions."""
         # this reference implementation may be overridden
@@ -1302,6 +1313,10 @@ class MusicProvider(Provider):
                     prov_item.provider_mappings,
                 )
                 db_id = sync_details.item_id if sync_details else None
+                if not sync_details and await self._library_holds_item(
+                    self.mass.music.artists, prov_item
+                ):
+                    continue
                 # batch all writes for this item into a single commit
                 async with self.mass.music.database.deferred_commit():
                     if not sync_details:
@@ -1352,6 +1367,17 @@ class MusicProvider(Provider):
             )
         )
 
+    async def _library_holds_item(
+        self, controller: MediaControllerBase[Any], prov_item: MediaItemType
+    ) -> bool:
+        """Return True if a unique-only sync should skip an item the library already holds."""
+        if not self.library_sync_unique_only():
+            return False
+        if await controller._get_library_item_by_match(prov_item) is None:
+            return False
+        self.logger.debug("Skipping sync of %s: already in the library", prov_item.uri)
+        return True
+
     async def _sync_library_albums(self) -> set[int]:
         """Sync Library Albums to Music Assistant library."""
         self.logger.debug("Start sync of Albums to Music Assistant library.")
@@ -1368,6 +1394,10 @@ class MusicProvider(Provider):
                     prov_item.provider_mappings,
                 )
                 db_id = sync_details.item_id if sync_details else None
+                if not sync_details and await self._library_holds_item(
+                    self.mass.music.albums, prov_item
+                ):
+                    continue
                 # batch all writes for this item into a single commit
                 async with self.mass.music.database.deferred_commit():
                     if not sync_details:
@@ -1765,6 +1795,10 @@ class MusicProvider(Provider):
                     ),
                 )
                 db_id = sync_details.item_id if sync_details else None
+                if not sync_details and await self._library_holds_item(
+                    self.mass.music.tracks, prov_item
+                ):
+                    continue
                 if not sync_details and not prov_item.available:
                     # skip unavailable tracks
                     # TODO: do we want to search for substitutes at this point ?

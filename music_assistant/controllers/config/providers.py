@@ -36,6 +36,7 @@ from music_assistant.constants import (
     CONF_ENTRY_LIBRARY_SYNC_PODCASTS,
     CONF_ENTRY_LIBRARY_SYNC_RADIOS,
     CONF_ENTRY_LIBRARY_SYNC_TRACKS,
+    CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY,
     CONF_PLAYERS,
     CONF_PROVIDERS,
     DEFAULT_PROVIDER_CONFIG_ENTRIES,
@@ -686,6 +687,19 @@ class ProviderConfigMixin:
             extra_entries.append(CONF_ENTRY_LIBRARY_SYNC_PODCASTS)
         if ProviderFeature.LIBRARY_RADIOS in supported_features:
             extra_entries.append(CONF_ENTRY_LIBRARY_SYNC_RADIOS)
+        if (
+            provider
+            and isinstance(provider, MusicProvider)
+            and provider.is_streaming_provider
+            and supported_features.intersection(
+                {
+                    ProviderFeature.LIBRARY_ARTISTS,
+                    ProviderFeature.LIBRARY_ALBUMS,
+                    ProviderFeature.LIBRARY_TRACKS,
+                }
+            )
+        ):
+            extra_entries.append(CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY)
         # sync export settings
         if supported_features.intersection(
             {

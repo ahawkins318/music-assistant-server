@@ -144,6 +144,10 @@
       "label": "Import album tracks",
       "description": "By default, when importing Albums into the library, only the Album itself will be imported into the Music Assistant Library, allowing you to manually browse and select which tracks you want to import. \n\nIf you want to override this default behavior, you can use this configuration option.\n\nPlease note that some (streaming) sources may already define this behavior unsolicited, by automatically adding all tracks from the album to their library/favorites."
     },
+    "library_sync_unique_only": {
+      "label": "Only sync library items unique to this source",
+      "description": "Skip an artist, album or track from this source's library when the Music Assistant library already holds it from another source, and never link this source's albums to existing library albums. Items only this source has are still imported. A skipped item stays reachable through search and 'Other versions'."
+    },
     "library_sync_albums": {
       "label": "Sync Library Albums from this source to Music Assistant",
       "description": "Whether to import (favourited/in-library) Albums from this source to the Music Assistant Library. \n\nPlease note that by adding an Album into the Music Assistant library, the Album Artists will always be imported as well."
