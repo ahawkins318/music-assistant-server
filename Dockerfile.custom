@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+#
+# Overlays this fork's music_assistant package on the official image of the stable release it is based
+# on, instead of building a wheel like the upstream Dockerfile. The official wheel carries
+# helpers/app_secrets.json (provider API credentials such as the Apple Music developer token), injected
+# at release time from a private repo; a wheel built from this checkout has none, and Apple Music would
+# not load.
+ARG BASE_TAG
+FROM ghcr.io/music-assistant/server:${BASE_TAG}
+
+RUN --mount=type=bind,source=music_assistant,target=/overlay \
+    PKG="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/music_assistant" \
+    && test -s "$PKG/helpers/app_secrets.json" \
+    && cp -R /overlay/. "$PKG/" \
+    && python -m compileall -q "$PKG"
