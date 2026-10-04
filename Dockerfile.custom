@@ -1,10 +1,13 @@
 # syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
 #
 # Overlays this fork's music_assistant package on the official image of the stable release it is based
 # on, instead of building a wheel like the upstream Dockerfile. The official wheel carries
 # helpers/app_secrets.json (provider API credentials such as the Apple Music developer token), injected
 # at release time from a private repo; a wheel built from this checkout has none, and Apple Music would
 # not load.
+#
+# BASE_TAG is required and deliberately has no default: the overlay only fits the release it was cut from.
 ARG BASE_TAG
 FROM ghcr.io/music-assistant/server:${BASE_TAG}
 

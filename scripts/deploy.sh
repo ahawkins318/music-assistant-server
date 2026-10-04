@@ -31,7 +31,7 @@ fi
 CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 if [[ "$CURRENT_BRANCH" != "$DEPLOY_BRANCH" ]]; then
   echo "error: deploy.sh only runs from $DEPLOY_BRANCH (currently on '${CURRENT_BRANCH:-detached HEAD}')." >&2
-  echo "Testing a build change? Use 'docker buildx build -f Dockerfile.custom' without --push instead." >&2
+  echo "Testing a build change? Use 'docker buildx build -f Dockerfile.custom --build-arg BASE_TAG=<release> .' without --push instead." >&2
   exit 1
 fi
 
