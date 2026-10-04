@@ -58,6 +58,9 @@ git push --force-with-lease origin custom-deploy
 ./scripts/deploy.sh
 ```
 
+Once the new image is running and its first syncs have finished, audit the library for merges by running 
+`tools/audit_music_assistant.py` in the NAS organization repo. 
+
 Notes for the rebase:
 
 - Conflicts land in `models/music_provider.py` and `controllers/music/media/albums.py`. The patch adds a
