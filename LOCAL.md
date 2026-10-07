@@ -12,6 +12,7 @@ here applies to the `custom-deploy` branch only.
    setting; turn it on for Apple Music).
 3. Unmerge earlier merges when syncing only unique items.
 4. The deploy files: `Dockerfile.custom`, `scripts/deploy.sh`, this file.
+5. Take a provider's leftover tracks off an album when unmerging it (not yet on `library-sync-unique-only`).
 
 The same fixes exist against upstream `dev` on `case4-distinct-album-positions-merged` and
 `library-sync-unique-only`. Those are the versions to offer upstream. The `dev` version of the sync patch

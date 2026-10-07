@@ -48,6 +48,7 @@ from music_assistant.constants import (
     CONF_ENTRY_LIBRARY_SYNC_DELETIONS,
     CONF_ENTRY_LIBRARY_SYNC_PLAYLIST_TRACKS,
     CONF_ENTRY_LIBRARY_SYNC_UNIQUE_ONLY,
+    DB_TABLE_ALBUM_TRACKS,
     DB_TABLE_PROVIDER_MAPPINGS,
     PlaylistPlayableItem,
 )
@@ -1378,12 +1379,17 @@ class MusicProvider(Provider):
 
         A new item is skipped when the library already holds it, or (for a track) its
         album, from another source. An album or track merged with another source's copy
-        earlier has this provider's mappings taken off again, undoing the merge.
+        earlier has this provider's mappings taken off again, undoing the merge, and the
+        album loses the tracks this provider left on it.
         """
         if not self.library_sync_unique_only():
             return False
         if db_id is None:
-            held = await controller._get_library_item_by_match(prov_item) is not None
+            match = await controller._get_library_item_by_match(prov_item)
+            held = match is not None
+            if match is not None and isinstance(prov_item, Album):
+                # unmerged by an earlier run, or by a track sync: its tracks may remain
+                await self._unmerge_album_tracks(match)
             if not held and isinstance(prov_item, Track):
                 held = await self._album_held_elsewhere(prov_item.album)
             if held:
@@ -1402,8 +1408,62 @@ class MusicProvider(Provider):
             return False
         if merged:
             self.logger.debug("Unmerging %s from library item %s", prov_item.uri, db_id)
+            if isinstance(prov_item, Album):
+                await self._unmerge_album_tracks(db_id)
             await controller.remove_provider_mappings(db_id, self.instance_id)
         return merged
+
+    async def _unmerge_album_tracks(self, db_album_id: int) -> None:
+        """
+        Take the tracks this provider left on a library album another source holds off it.
+
+        Album sync skips such an album, so its tracks are never visited on their own. A
+        track only this provider maps is padding and leaves the library. A track whose
+        other sources all sit on other albums was linked here by this provider's import
+        of the album, so only that link goes: it stays a second way to play its own file.
+        """
+        albums = self.mass.music.albums
+        for track in await albums.get_library_album_tracks(db_album_id):
+            if not any(m.provider_instance == self.instance_id for m in track.provider_mappings):
+                continue
+            if not self._has_other_mappings(track):
+                self.logger.debug("Removing padding track %s from album %s", track.uri, db_album_id)
+                await self.mass.music.tracks.remove_provider_mappings(
+                    track.item_id, self.instance_id
+                )
+            elif await self._sources_sit_on_other_albums(track, db_album_id):
+                self.logger.debug("Unlinking track %s from album %s", track.uri, db_album_id)
+                await self.mass.music.database.delete(
+                    DB_TABLE_ALBUM_TRACKS,
+                    {"track_id": int(track.item_id), "album_id": int(db_album_id)},
+                )
+
+    async def _sources_sit_on_other_albums(self, track: Track, db_album_id: int) -> bool:
+        """
+        Return True if every other source of a library track puts it on a different album.
+
+        False whenever a source can not be asked or names no library album: a link is
+        only removed on positive evidence that nothing but this provider made it.
+        """
+        albums = self.mass.music.albums
+        for mapping in track.provider_mappings:
+            if mapping.provider_instance == self.instance_id:
+                continue
+            provider = self.mass.get_provider(mapping.provider_instance)
+            if not isinstance(provider, MusicProvider):
+                return False
+            try:
+                prov_track = await provider.get_track(mapping.item_id)
+            except MusicAssistantError, NotImplementedError:
+                return False
+            if prov_track.album is None:
+                return False
+            source_album = await albums.get_library_item_by_prov_id(
+                prov_track.album.item_id, prov_track.album.provider
+            )
+            if source_album is None or int(source_album.item_id) == int(db_album_id):
+                return False
+        return True
 
     async def _album_held_elsewhere(self, album: Album | ItemMapping | None) -> bool:
         """Return True if a track's album is a library album another source holds."""
@@ -1425,6 +1485,7 @@ class MusicProvider(Provider):
         # an album this provider was merged into stays merged until its own album sync
         # runs, so take it off here too in case album sync is turned off
         if any(m.provider_instance == self.instance_id for m in db_album.provider_mappings):
+            await self._unmerge_album_tracks(int(db_album.item_id))
             await albums.remove_provider_mappings(db_album.item_id, self.instance_id)
         return True
 
